@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#FB7299" />
+<meta name="description" content="个人自用的跳转跳板页面，倒计时结束后自动前往哔哩哔哩。" />
+<meta name="robots" content="noindex" />
+<title>即将前往哔哩哔哩</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FB7299'/%3E%3Ctext x='32' y='44' font-size='34' font-family='sans-serif' font-weight='700' fill='%23fff' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --brand: #fb7299;
+    --brand-dark: #e45c84;
+    --brand-soft: rgba(251, 114, 153, 0.1);
+    --ink: #1f2329;
+    --ink-mute: #6b7280;
+    --line: #e9ebef;
+    --surface: #ffffff;
+    --page: #f7f8fa;
+    --radius: 18px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+    min-height: 100%;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(1100px 520px at 50% -12%, rgba(251, 114, 153, 0.16), transparent 62%),
+      radial-gradient(760px 420px at 50% 112%, rgba(0, 174, 236, 0.1), transparent 65%),
+      var(--page);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 460px;
+    padding: 40px 28px 28px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow:
+      0 1px 2px rgba(16, 24, 40, 0.04),
+      0 18px 44px -18px rgba(16, 24, 40, 0.16);
+    text-align: center;
+    animation: card-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 顶部品牌标识 */
+  .mark {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 22px;
+    display: grid;
+    place-items: center;
+    border-radius: 16px;
+    background: linear-gradient(160deg, #ff87a8, var(--brand));
+    box-shadow: 0 10px 22px -10px rgba(251, 114, 153, 0.85);
+  }
+
+  .mark svg { width: 28px; height: 28px; display: block; }
+
+  h1 {
+    margin: 0 0 10px;
+    font-size: clamp(19px, 4.6vw, 22px);
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.4;
+  }
+
+  .lead {
+    margin: 0 0 28px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--ink-mute);
+  }
+
+  /* 倒计时数字 */
+  .countdown {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .countdown .num {
+    font-size: clamp(44px, 13vw, 56px);
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+    color: var(--brand);
+    letter-spacing: -1px;
+  }
+
+  .countdown .unit {
+    font-size: 15px;
+    color: var(--ink-mute);
+  }
+
+  /* 进度条 */
+  .bar {
+    height: 4px;
+    margin: 0 auto 8px;
+    max-width: 260px;
+    border-radius: 999px;
+    background: var(--brand-soft);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #ff9db8, var(--brand));
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+
+  .hint {
+    margin: 0 0 26px;
+    font-size: 13px;
+    color: var(--ink-mute);
+    min-height: 20px;
+  }
+
+  /* 主按钮 */
+  .go {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 15px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: inherit;
+    color: #fff;
+    text-decoration: none;
+    background: var(--brand);
+    border: 0;
+    border-radius: 12px;
+    box-shadow: 0 10px 20px -12px rgba(251, 114, 153, 0.9);
+    transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .go:hover { background: var(--brand-dark); }
+  .go:active { transform: translateY(1px); box-shadow: 0 4px 12px -8px rgba(251, 114, 153, 0.9); }
+  .go:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: 3px; }
+
+  .go svg { width: 18px; height: 18px; }
+
+  /* 手动链接 */
+  .plain-link {
+    display: inline-block;
+    margin: 16px 0 0;
+    font-size: 13px;
+    color: var(--ink-mute);
+    text-decoration: none;
+    word-break: break-all;
+    border-bottom: 1px dashed rgba(107, 114, 128, 0.45);
+    padding-bottom: 1px;
+    transition: color 0.18s ease, border-color 0.18s ease;
+  }
+
+  .plain-link:hover { color: var(--brand); border-color: var(--brand); }
+
+  /* 免责说明 */
+  .notice {
+    margin-top: 30px;
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.75;
+    color: var(--ink-mute);
+    background: #fafbfc;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--brand);
+    border-radius: 10px;
+  }
+
+  .notice strong { color: #43474e; font-weight: 600; }
+
+  .foot {
+    margin: 18px 0 0;
+    font-size: 12px;
+    color: #9aa1ab;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (max-width: 380px) {
+    .card { padding: 32px 20px 22px; }
+    .mark { width: 50px; height: 50px; margin-bottom: 18px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card { animation: none; }
+    .go { transition: none; }
+  }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="mark" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2.5" y="6" width="19" height="12.5" rx="3.2" />
+      <path d="M7 2.8 9.6 6M17 2.8 14.4 6" />
+      <path d="M9.6 11.2h4.8" />
+    </svg>
+  </div>
+
+  <h1 id="title">即将前往哔哩哔哩</h1>
+  <p class="lead">这是一个纯静态跳转页，不做任何内容中转。</p>
+
+  <div class="countdown">
+    <span class="num" id="num">5</span>
+    <span class="unit">秒后自动跳转</span>
+  </div>
+
+  <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+  <p class="hint" id="hint">正在为你准备跳转…</p>
+  <p class="sr-only" id="sr">页面将在 5 秒后自动跳转到哔哩哔哩官网。</p>
+
+  <a class="go" id="go" href="https://www.bilibili.com" rel="noopener noreferrer">
+    立即前往
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5 12h13M13 6l6 6-6 6" />
+    </svg>
+  </a>
+
+  <a class="plain-link" id="plain" href="https://www.bilibili.com" rel="noopener noreferrer">https://www.bilibili.com</a>
+
+  <div class="notice">
+    <strong>免责声明：</strong>本页面仅为跳转跳板，不是哔哩哔哩官方产品，不托管任何 B 站内容。页面不解析视频、不注入任何脚本、不提供任何绕过或抓取功能。所有内容与版权均归哔哩哔哩及其权利人所有。
+  </div>
+
+  <p class="foot">个人自用页面 · 无第三方依赖</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var CONFIG = {
+    target: "https://www.bilibili.com",
+    seconds: 5
+  };
+
+  var numEl  = document.getElementById("num");
+  var barEl  = document.getElementById("bar");
+  var hintEl = document.getElementById("hint");
+  var srEl   = document.getElementById("sr");
+
+  var total   = Math.max(1, CONFIG.seconds) * 1000;
+  var remain  = total;
+  var startedAt = 0;
+  var rafId = null;
+  var jumping = false;
+
+  function jump() {
+    if (jumping) return;
+    jumping = true;
+    if (rafId) cancelAnimationFrame(rafId);
+    window.location.replace(CONFIG.target);
+  }
+
+  function paint(ms) {
+    var ratio = Math.max(0, ms) / total;
+    var secs = Math.ceil(ms / 1000);
+    numEl.textContent = secs > 0 ? String(secs) : "0";
+    barEl.style.transform = "scaleX(" + ratio.toFixed(4) + ")";
+  }
+
+  function tick(now) {
+    var elapsed = now - startedAt;
+    var left = remain - elapsed;
+    if (left <= 0) {
+      paint(0);
+      hintEl.textContent = "正在跳转到哔哩哔哩…";
+      jump();
+      return;
+    }
+    paint(left);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function start() {
+    startedAt = performance.now();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // 页面被切到后台时暂停，回到前台再继续，避免“回来就已经跳走了”
+  function pause() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+    remain = Math.max(0, remain - (performance.now() - startedAt));
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (jumping) return;
+    if (document.hidden) {
+      pause();
+    } else if (!rafId) {
+      start();
+    }
+  });
+
+  srEl.textContent = "页面将在 " + CONFIG.seconds + " 秒后自动跳转到哔哩哔哩官网。";
+  paint(total);
+  start();
+})();
+</script>
+</body>
+</html>
