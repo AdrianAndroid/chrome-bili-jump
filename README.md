@@ -5,6 +5,8 @@
 在浏览器标签页里打开时它不跳转，只说明用途并给出「安装到桌面」入口；**在应用窗口里打开时自动直达** [bilibili.com](https://www.bilibili.com)——靠 `display-mode` 判断，不弹倒计时，也不依赖本地记忆。全站不依赖任何第三方库、后端服务或 iframe。
 
 > 线上地址：<https://adrianandroid.github.io/chrome-bili-jump/>
+>
+> 当前版本：**v1.0.0**（封版）· [Release 说明](https://github.com/AdrianAndroid/chrome-bili-jump/releases/tag/v1.0.0)
 
 ## 页面预览
 
@@ -12,7 +14,13 @@
 | --- | --- |
 | ![电脑端预览](docs/preview-desktop.png) | ![手机端预览](docs/preview-mobile.png) |
 
-两张预览图都是用 Chrome DevTools 设备模拟（`Emulation.setDeviceMetricsOverride`）对本地页面直接截的，截的是**首次打开、停在原地的状态**，不是设计稿也不是后期拼图。
+上面两张都是用 Chrome DevTools 设备模拟（`Emulation.setDeviceMetricsOverride`）对本地页面直接截的，截的是**首次打开、停在原地的状态**，不是设计稿也不是后期拼图。
+
+应用窗口里（用 `--app` 打开、加了 `?stay=1` 让它停在原地）是这样：
+
+![应用窗口内的页面](docs/preview-app-mode.png)
+
+顶部那枚「已作为应用运行 · 本次不跳转」的徽标，就是页面识别出自己跑在应用窗口里的证据。
 
 ## macOS 桌面应用版
 
@@ -90,10 +98,13 @@ chrome-bili-jump/
 ├── macos/
 │   ├── build-app.sh        # 一键生成 macOS 桌面应用
 │   └── icon.svg            # 应用图标源文件
+├── tools/
+│   └── verify.py           # 四组 CDP 行为验证脚本（原理/实验方案的复现工具）
 ├── docs/
 │   ├── preview-desktop.png # README 用的电脑端截图
 │   ├── preview-mobile.png  # README 用的手机端截图
-│   └── preview-app-window.png # 桌面应用窗口截图
+│   ├── preview-app-mode.png   # 应用窗口内（识别为 standalone、不跳转）
+│   └── preview-app-window.png # 桌面应用窗口（已进入 B 站首页）
 └── README.md
 ```
 
@@ -118,6 +129,105 @@ chrome-bili-jump/
 
 - 想「一个独立窗口里一直是 B 站」→ 用 macOS 的 `.app`（Chrome 应用模式，导航不换窗口），见上一节；
 - 想「任何电脑点一下就能装上、记录偏好」→ 用 PWA，但每次跳转都会落到浏览器标签页。
+
+## 工作原理
+
+整个项目只做一件事：**同一个页面，在「应用窗口」里就跳 B 站，在「浏览器标签页」里就停住**。判断依据是浏览器给的窗口形态，不是用户偏好、不是倒计时、也不是本地存储。
+
+```
+                       ┌───────────────────────────────┐
+  GitHub Pages  ──────▶│ index.html（唯一页面）         │
+  (main 分支根目录)     │  manifest.webmanifest / sw.js │
+                       └───────────────┬───────────────┘
+                                       │ 加载即判断
+                        matchMedia('(display-mode: standalone/minimal-ui/fullscreen)')
+                                       │
+              ┌────────────────────────┴─────────────────────────┐
+     浏览器标签页（browser）                          应用窗口（standalone）
+              │                                                 │
+   停在首页：说明 + 安装 + 手动进入                 两帧后 location.replace(bilibili.com)
+              │                                                 │
+     beforeinstallprompt → 「安装到桌面」                失败则显示「点这里」兜底
+              │
+     装成 PWA（独立窗口，下次打开即自动跳）
+```
+
+三条链路：
+
+1. **网页链路**：Pages 托管静态文件 → Chrome 拉 `index.html` → JS 读窗口形态 → 决定停留还是跳转。全流程零后端、零第三方请求。
+2. **安装链路**：Chrome 判定站点可安装（HTTPS + `manifest.webmanifest` + 图标 + `start_url`）→ 派发 `beforeinstallprompt` → 页面接管成自己的按钮 → 用户点击后生成独立窗口的应用。
+3. **桌面链路**：`macos/build-app.sh` 生成一个 `.app`，它的可执行文件就是一行 `exec Chrome --app=<Pages 地址>`；所以它同样打开这个页面，同样走上面那套判断。
+
+关键的三个设计决策：
+
+- **不用倒计时**：倒计时只解决「用户想不想跳」，解决不了「这是不是应用窗口」。应用窗口里直接跳，标签页里永远不跳，语义更干净。
+- **不用 localStorage 记忆**：PWA 和标签页同源，共用同一份 localStorage；一旦写入「自动跳」的偏好，标签页也会跟着跳，正好违背需求。窗口形态是运行时事实，跨设备、跨浏览器都成立。
+- **不用 iframe**：B 站禁止被框，本项目也明确不嵌入任何 B 站内容，只做纯导航。
+
+### 为什么「应用窗口里点 B 站卡片会另开窗口」改不了
+
+Chrome 的 `--app` 窗口没有标签栏，遇到 `target="_blank"` 的链接只能新开一个窗口——这是浏览器的窗口模型决定的，页面侧没有任何 API 能拦住（`window.open` 的 target 由被点击的链接决定，跳转页管不到 B 站自己页面里的链接）。实测见下一节实验 [2]：同一个 `--app` 窗口里点 `target=_blank`，新页面落在**不同 windowId** 上。
+
+要彻底解决只有两条路，都超出本项目边界：一是注入/改写 B 站页面的 DOM（属于明确的红线），二是自己写原生 WKWebView 壳去接管 `_blank`。所以这里接受现状：**首页能留在应用窗口，卡片链接另开窗口**。
+
+## 实验方案与验证
+
+这个项目的每个结论都不是「看着像」，而是用 **Chrome DevTools Protocol（CDP）** 直接读运行时数值验证的：独立 `--user-data-dir` 起一个干净 Chrome，连上 WebSocket，用 `Runtime.evaluate` 读环境量、用 `Input.dispatchMouseEvent` 模拟真实点击、用 `Browser.getWindowForTarget` 取窗口 id、用 `Page.getInstallabilityErrors` 查安装资格。
+
+验证脚本已随仓库提供：`tools/verify.py`（只用 Python 标准库 + `websocket-client`）。
+
+### 四组实验
+
+| # | 想验证什么 | 手段 | 观测量 | 结论 |
+| --- | --- | --- | --- | --- |
+| 1 | 应用窗口和标签页能否被区分 | 分别用 `--app=URL` 和普通 `URL` 起浏览器，`Runtime.evaluate` 读 `matchMedia` 与高度差 | `display-mode` 三个值、`outerHeight-innerHeight`、`windowControlsOverlay.visible` | 可以，`display-mode` 是可靠判据 |
+| 2 | 应用窗口里 `target=_blank` 会不会留在原窗口 | `Input.dispatchMouseEvent` 在 `--app` 窗口里点一个 `target=_blank` 链接（真实点击而非 `element.click()`，后者会被弹窗拦截） | 新旧页面的 `Browser.getWindowForTarget` windowId | 不会，一律新开窗口 |
+| 3 | 这个站点到底能不能装成应用 | `Page.getInstallabilityErrors`（Chrome 自己的安装判定） | `installabilityErrors` 数组 | 可以，空数组即无阻断项 |
+| 4 | 页面状态机是否符合预期 | 三种打开方式各起一个会话，读 `#firstRun` 是否可见 / 最终 hostname | 标签页是否停留、应用窗口是否跳转、`?stay=1` 是否暂停 | 三者均符合设计 |
+
+### 实测输出（Chrome 157 / macOS / 2026-11）
+
+```
+[1] 环境量对比
+  tab  → {"standalone":false,"minimal":false,"browser":true,
+          "wcoSupported":true,"wcoVisible":false,"innerH":1235,"outerH":1322,"gap":87}
+  app  → {"standalone":true,"minimal":false,"browser":false,
+          "wcoSupported":true,"wcoVisible":false,"innerH":1294,"outerH":1322,"gap":28}
+
+[2] 应用窗口里 target=_blank 的落点
+  应用窗口 id: 2129532731
+   - http://127.0.0.1:58381/a.html    窗口 2129532731 同窗口: True
+   - http://127.0.0.1:58381/b.html    窗口 2129532734 同窗口: False
+
+[3] 可安装性
+  installabilityErrors: []
+
+[4] 页面状态机
+  标签页停留: True
+  应用窗口跳转后地址: www.bilibili.com
+  ?stay=1 停留: True
+```
+
+从数据里读出的几条判断：
+
+- `standalone` 与 `browser` 在两个场景里严格互斥，可以直接当主判据；
+- `navigator.windowControlsOverlay.visible` 两种模式下都是 `false`，**不可用**（虽然对象存在）；
+- 高度差 28 vs 87 也能区分，但会被缩放、全屏、自定义窗口干扰，只作旁证；
+- 新窗口的 windowId 不同，说明「另开窗口」是浏览器行为，不是页面能控制的。
+
+### 自己复现
+
+```bash
+# 依赖
+python3 -m pip install websocket-client
+
+# Chrome 需在 /Applications/Google Chrome.app
+python3 tools/verify.py
+```
+
+脚本会自己在本地起 `python3 -m http.server` 服务当前目录，每次用独立的临时 profile 和随机端口，不会碰你正在用的 Chrome 配置；跑完把四组数值和上面记录对照即可。
+
+> 排查记录：脚本第一版在实验 [2] 一直拿不到页面元素，原因是调试端口写死（`9403`）被上一次残留的 Chrome 占着，CDP 连上的是旧实例；改成自动挑空闲端口后恢复正常。这类「连到了旧浏览器」是 CDP 自动化最常见的坑。
 
 ## 实现思路
 
