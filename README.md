@@ -2,7 +2,7 @@
 
 一个托管在 GitHub Pages 上的**纯静态跳转跳板页**，个人自用；也可以安装成桌面应用（PWA）。
 
-首次打开会停在原地讲清楚用途，并给出「安装到桌面」入口；点一次「进入哔哩哔哩」后记住选择，**之后每次打开倒计时 5 秒自动跳转**到 [bilibili.com](https://www.bilibili.com)。全站不依赖任何第三方库、后端服务或 iframe。
+首次打开会停在原地讲清楚用途，并给出「安装到桌面」入口；点一次「进入哔哩哔哩」后记住选择，**之后每次打开直接跳转**到 [bilibili.com](https://www.bilibili.com)。全站不依赖任何第三方库、后端服务或 iframe。
 
 > 线上地址：<https://adrianandroid.github.io/chrome-bili-jump/>
 
@@ -73,11 +73,10 @@ open ~/Applications/哔哩哔哩.app
 ## 功能
 
 - **首次打开停在原地，不跳转**：先把用途讲清楚，同时给出安装入口和「进入哔哩哔哩」按钮
-- 点一次「进入哔哩哔哩」后，页面用 `localStorage` 记住选择；**之后每次打开自动倒计时跳转**（5 秒，可随时取消）
-- 「取消自动跳转」按钮可清除记忆，回到停留态
+- 点一次「进入哔哩哔哩」后，页面用 `localStorage` 记住选择；**之后每次打开直接跳转，不再等倒计时**
+- 想恢复停留态：在网址后加 `?stay=1`（会清掉记忆并停在首页）
 - 可作为 PWA **安装到桌面**（Chrome 地址栏安装图标 / 菜单「安装页面为应用」）
 - 手机 / 电脑双端自适应，安全区（刘海屏、手势条）留白；可安装后跑在独立窗口里
-- 页面被切到后台时倒计时暂停，回到前台继续
 - 带完整免责声明，无第三方依赖
 
 ## 文件结构
@@ -138,43 +137,37 @@ chrome-bili-jump/
 - 卡片 `max-width: 460px`，配合 `width: 100%`，宽屏时是一张居中小卡，窄屏时自动铺满可用宽度；
 - 内边距用 `padding: max(24px, env(safe-area-inset-*))` 处理刘海屏和底部手势条；
 - 字体尺寸用 `clamp()`（如 `clamp(19px, 4.6vw, 22px)`），字号随视口平滑变化，不需要为每个断点写一套 media query；
-- 倒计时数字加 `font-variant-numeric: tabular-nums`，数字从 5 变到 4 时宽度不变，不会左右抖动。
+- 数字类文本统一用 `font-variant-numeric: tabular-nums`，宽度不随数值变化抖动。
 
-### 3. 停留态与自动跳转
+### 3. 停留态与直接跳转
 
 页面有两个状态，靠 `localStorage` 里的 `bili-jump:auto` 决定：
 
 ```js
-var CONFIG = { target: "https://www.bilibili.com", seconds: 5, autoKey: "bili-jump:auto" };
+var CONFIG = { target: "https://www.bilibili.com", autoKey: "bili-jump:auto" };
 
 // 首次：firstRun 显示说明 + 安装 + 进入按钮，不计时
 // 点「进入哔哩哔哩」→ prefSet(true) → location.replace(target)
-// 已记住：autoRun 显示倒计时并跳转
+// 已记住：autoRun 显示「正在前往…」，两帧后立刻 location.replace(target)
 ```
 
-**首访为什么不倒计时**：安装入口只在这个页面被打开时存在，5 秒自动跳走就永远没机会点安装。所以首屏必须停下来，让人先装、再决定。
+**首访为什么停住**：安装入口只在这个页面被打开时存在，一自动跳走就永远没机会点安装。所以首屏必须停下来，让人先装、再决定。
 
-倒计时本身不是简单的 `setInterval` 每秒减一，而是**基于时间戳算剩余时间**，用 `requestAnimationFrame` 渲染：
+**为什么记住后不倒数**：这是跳板页，不是内容页——用户已经表达过「以后都进 B 站」，再多等 5 秒没有收益。所以直接 `location.replace()`。
 
-```js
-startedAt = performance.now();
-function tick(now) {
-  var left = remain - (now - startedAt);
-  if (left <= 0) { jump(); return; }
-  paint(left);                       // 数字 = ceil(left / 1000)，进度条 = left / total
-  rafId = requestAnimationFrame(tick);
-}
-```
+用两帧（`requestAnimationFrame` × 2）再跳，是为了让「正在前往…」这一帧先画出来，避免整页白屏闪一下；实际耗时约 30ms，肉眼无感。
 
-原因：`setInterval` 在主线程繁忙、后台标签页节流时会产生累计误差，甚至漏跳；用「截止时间 - 当前时间」算剩余量不会漂移，进度条也能和数字严格同步（`scaleX()` 比改 `width` 更省重排）。
+取消方式：
+
+- 浏览器里访问 `?stay=1` 会清掉记忆并停在首页（启动时解析 `URLSearchParams`，命中就 `prefSet(false)`）；
+- 页面上的「取消自动跳转」按钮仍然保留，用于跳转被拦下、页面没走掉的情况。
 
 补充细节：
 
 - 跳转用 `location.replace()` 而不是 `location.href`，浏览器「后退」不会又回到跳转页再跳一次；
-- `visibilitychange` 里暂停 / 恢复：隐藏时记下剩余量并取消动画帧，可见时重新计时起点；
-- 「取消自动跳转」清掉 key、回到停留态，不刷新页面也能立刻生效；
 - `localStorage` 全部包在 `try/catch` 里，隐私模式或 `file://` 下失败也不会报错；
-- 跳转加了 `jumping` 标志位，避免重复触发。
+- 跳转加了 `jumping` 标志位，避免重复触发；
+- 跳不出去时（比如网络拦截），页面上留着「没有自动跳转？点这里」的按钮兜底。
 
 ### 3.5 安装入口（beforeinstallprompt）
 
@@ -224,7 +217,7 @@ python3 -m http.server 8080
 
 直接双击 `index.html`（`file://`）也能看页面，但 `file://` 下 Service Worker 不注册、Chrome 不会出现安装入口——**测安装相关行为必须用 `http://localhost` 或 HTTPS**。
 
-注意：点过「进入哔哩哔哩」后本地就会记住选择，下次打开直接倒计时跳转；调试时记得先清掉那个 localStorage key。
+注意：点过「进入哔哩哔哩」后本地就会记住选择，下次打开直接跳转；想调试停留态，访问 `?stay=1`，或在控制台清掉 `bili-jump:auto`。
 
 ## 部署（GitHub Pages）
 
@@ -272,7 +265,7 @@ git push origin main
 
 | 想改什么 | 改哪里 |
 | --- | --- |
-| 自动跳转秒数 | `index.html` 脚本里的 `CONFIG.seconds`（只在「已记住」状态生效） |
+| 取消自动跳转 | 网址后加 `?stay=1`，或清掉 localStorage 的 `bili-jump:auto` |
 | 是否默认自动跳 | `CONFIG.autoKey` 对应的 localStorage 值；或改 `prefGet()` 的默认返回 |
 | 跳转目标 | `CONFIG.target`，以及 `<a href>` 两处链接 |
 | 安装按钮文案 | `#installBtn` 文本、`#installNote` 提示 |

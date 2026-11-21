@@ -136,56 +136,22 @@
 
   .steps strong { color: var(--ink); font-weight: 600; }
 
-  /* 倒计时 */
-  .countdown {
-    display: none;
-    align-items: baseline;
-    justify-content: center;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-
-  .countdown.show { display: flex; }
-
-  .countdown .num {
-    font-size: clamp(44px, 13vw, 56px);
-    font-weight: 700;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum";
-    color: var(--brand);
-    letter-spacing: -1px;
-  }
-
-  .countdown .unit {
-    font-size: 15px;
-    color: var(--ink-mute);
-  }
-
-  .bar {
-    display: none;
-    height: 4px;
-    margin: 0 auto 8px;
-    max-width: 260px;
-    border-radius: 999px;
+  /* 自动跳转态 */
+  .jump-icon {
+    width: 44px;
+    height: 44px;
+    margin: 4px auto 14px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
     background: var(--brand-soft);
-    overflow: hidden;
+    color: var(--brand);
   }
 
-  .bar.show { display: block; }
-
-  .bar span {
-    display: block;
-    height: 100%;
-    width: 100%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, #ff9db8, var(--brand));
-    transform-origin: left center;
-    transform: scaleX(1);
-  }
+  .jump-icon svg { width: 22px; height: 22px; }
 
   .hint {
-    margin: 0 0 22px;
+    margin: 0 0 20px;
     font-size: 13px;
     color: var(--ink-mute);
     min-height: 20px;
@@ -382,16 +348,16 @@
     </div>
   </div>
 
-  <!-- 已记住选择：倒计时自动跳转 -->
+  <!-- 已记住选择：直接跳转 -->
   <div id="autoRun" hidden>
-    <div class="countdown show">
-      <span class="num" id="num">5</span>
-      <span class="unit">秒后自动跳转</span>
+    <div class="jump-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h13M13 6l6 6-6 6" />
+      </svg>
     </div>
-    <div class="bar show" aria-hidden="true"><span id="bar"></span></div>
-    <p class="hint" id="hint">正在为你准备跳转…</p>
+    <p class="hint" id="hint">正在前往哔哩哔哩…</p>
     <a class="go" id="goNow" href="https://www.bilibili.com" rel="noopener noreferrer">
-      立即前往
+      没有自动跳转？点这里
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M5 12h13M13 6l6 6-6 6" />
       </svg>
@@ -417,7 +383,6 @@
 
   var CONFIG = {
     target: "https://www.bilibili.com",
-    seconds: 5,
     autoKey: "bili-jump:auto"
   };
 
@@ -430,8 +395,6 @@
     installNote: document.getElementById("installNote"),
     jumpOnce: document.getElementById("jumpOnceBtn"),
     stopAuto: document.getElementById("stopAutoBtn"),
-    num: document.getElementById("num"),
-    bar: document.getElementById("bar"),
     hint: document.getElementById("hint"),
     badge: document.getElementById("modeBadge"),
     modeText: document.getElementById("modeText"),
@@ -462,6 +425,11 @@
     window.location.replace(CONFIG.target);
   }
 
+  function showNote(text) {
+    el.installNote.textContent = text;
+    el.installNote.classList.add("show");
+  }
+
   /* ---------- 首次停留态 ---------- */
   function renderFirstRun() {
     el.firstRun.hidden = false;
@@ -477,55 +445,20 @@
     el.sr.textContent = "当前停留在跳转页。点击进入哔哩哔哩后，页面会记住选择，之后自动跳转。";
   }
 
-  /* ---------- 自动跳转态 ---------- */
-  var rafId = null, remain = 0, startedAt = 0, total = CONFIG.seconds * 1000;
-
-  function paint(ms) {
-    var ratio = Math.max(0, ms) / total;
-    el.num.textContent = String(Math.max(0, Math.ceil(ms / 1000)));
-    el.bar.style.transform = "scaleX(" + ratio.toFixed(4) + ")";
-  }
-
-  function tick(now) {
-    var left = remain - (now - startedAt);
-    if (left <= 0) {
-      paint(0);
-      el.hint.textContent = "正在跳转到哔哩哔哩…";
-      jump();
-      return;
-    }
-    paint(left);
-    rafId = requestAnimationFrame(tick);
-  }
-
-  function startCountdown() {
-    startedAt = performance.now();
-    rafId = requestAnimationFrame(tick);
-  }
-
-  function pauseCountdown() {
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    remain = Math.max(0, remain - (performance.now() - startedAt));
-  }
-
+  /* ---------- 自动跳转态：不再倒计时，直接走 ---------- */
   function renderAuto() {
     el.firstRun.hidden = true;
     el.autoRun.hidden = false;
-    remain = total;
-    paint(total);
     if (standalone) {
       el.badge.hidden = false;
       el.modeText.textContent = "已作为应用运行 · 自动跳转已开启";
     }
-    el.sr.textContent = "已记住选择，页面将在 " + CONFIG.seconds + " 秒后自动跳转到哔哩哔哩。";
-    startCountdown();
+    el.sr.textContent = "已记住选择，正在直接跳转到哔哩哔哩。";
+    // 先让「正在前往」这一帧画出来，随即跳转（约 1 帧，肉眼无感）
+    requestAnimationFrame(function () {
+      requestAnimationFrame(jump);
+    });
   }
-
-  document.addEventListener("visibilitychange", function () {
-    if (jumping || el.autoRun.hidden) return;
-    if (document.hidden) pauseCountdown();
-    else if (!rafId) startCountdown();
-  });
 
   /* ---------- 交互 ---------- */
   el.enterBtn.addEventListener("click", function () {
@@ -536,23 +469,14 @@
   el.jumpOnce.addEventListener("click", jump);
 
   el.stopAuto.addEventListener("click", function () {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
     prefSet(false);
     el.autoRun.hidden = true;
-    remain = total;
     renderFirstRun();
-    el.hint.textContent = "";
   });
 
   /* ---------- 安装（PWA） ---------- */
   var deferredPrompt = null;
   var installedHintTimer = null;
-
-  function showInstallHint(text) {
-    el.installNote.textContent = text;
-    el.installNote.classList.add("show");
-  }
 
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault();
@@ -568,7 +492,7 @@
     deferredPrompt.userChoice.then(function (choice) {
       if (choice && choice.outcome === "accepted") {
         el.installBtn.classList.remove("show");
-        showInstallHint("已开始安装。装好后从桌面打开，它会记住你的选择。");
+        showNote("已开始安装。装好后从桌面打开，它会记住你的选择。");
       }
       deferredPrompt = null;
     });
@@ -576,19 +500,29 @@
 
   window.addEventListener("appinstalled", function () {
     el.installBtn.classList.remove("show");
-    showInstallHint("已安装。以后从桌面或 Dock 打开即可。");
+    showNote("已安装。以后从桌面或 Dock 打开即可。");
   });
 
   /* ---------- 启动 ---------- */
+  var forceStay = false;
+  try {
+    var q = new URLSearchParams(window.location.search);
+    forceStay = q.get("stay") === "1";
+  } catch (e) {}
+
+  if (forceStay) prefSet(false);
+
   renderFirstRun();
 
-  if (prefGet()) {
+  if (forceStay) {
+    showNote("已取消自动跳转（地址带了 ?stay=1）。下次打开会先停在这里。");
+  } else if (prefGet()) {
     renderAuto();
   } else if (!standalone) {
     // 浏览器里没看到安装入口时，给一条手动路径
     installedHintTimer = setTimeout(function () {
       if (deferredPrompt || el.installBtn.classList.contains("show")) return;
-      showInstallHint("没看到安装按钮？Chrome 里点右上角 ⋮ →「保存并分享」→「安装页面为应用」。");
+      showNote("没看到安装按钮？Chrome 里点右上角 ⋮ →「保存并分享」→「安装页面为应用」。");
     }, 2500);
   }
 
