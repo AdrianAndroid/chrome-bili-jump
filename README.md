@@ -2,7 +2,7 @@
 
 一个托管在 GitHub Pages 上的**纯静态跳转跳板页**，个人自用；也可以安装成桌面应用（PWA）。
 
-首次打开会停在原地讲清楚用途，并给出「安装到桌面」入口；点一次「进入哔哩哔哩」后记住选择，**之后每次打开直接跳转**到 [bilibili.com](https://www.bilibili.com)。全站不依赖任何第三方库、后端服务或 iframe。
+在浏览器标签页里打开时它不跳转，只说明用途并给出「安装到桌面」入口；**在应用窗口里打开时自动直达** [bilibili.com](https://www.bilibili.com)——靠 `display-mode` 判断，不弹倒计时，也不依赖本地记忆。全站不依赖任何第三方库、后端服务或 iframe。
 
 > 线上地址：<https://adrianandroid.github.io/chrome-bili-jump/>
 
@@ -72,9 +72,9 @@ open ~/Applications/哔哩哔哩.app
 
 ## 功能
 
-- **首次打开停在原地，不跳转**：先把用途讲清楚，同时给出安装入口和「进入哔哩哔哩」按钮
-- 点一次「进入哔哩哔哩」后，页面用 `localStorage` 记住选择；**之后每次打开直接跳转，不再等倒计时**
-- 想恢复停留态：在网址后加 `?stay=1`（会清掉记忆并停在首页）
+- **在浏览器标签页里打开时不会跳转**：只说明用途，并给出安装入口和「进入哔哩哔哩」按钮
+- **在应用窗口里（`.app` 或已安装的 PWA）自动直接跳转**，靠 `display-mode` 识别，无需任何记忆开关
+- 想在应用窗口里临时不跳：网址后加 `?stay=1`
 - 可作为 PWA **安装到桌面**（Chrome 地址栏安装图标 / 菜单「安装页面为应用」）
 - 手机 / 电脑双端自适应，安全区（刘海屏、手势条）留白；可安装后跑在独立窗口里
 - 带完整免责声明，无第三方依赖
@@ -139,35 +139,41 @@ chrome-bili-jump/
 - 字体尺寸用 `clamp()`（如 `clamp(19px, 4.6vw, 22px)`），字号随视口平滑变化，不需要为每个断点写一套 media query；
 - 数字类文本统一用 `font-variant-numeric: tabular-nums`，宽度不随数值变化抖动。
 
-### 3. 停留态与直接跳转
+### 3. 用窗口模式决定要不要自动跳
 
-页面有两个状态，靠 `localStorage` 里的 `bili-jump:auto` 决定：
+不再依赖 localStorage 记忆，而是**判断当前是不是应用窗口**：
 
 ```js
-var CONFIG = { target: "https://www.bilibili.com", autoKey: "bili-jump:auto" };
+var isAppWindow =
+  matchMedia('(display-mode: standalone)').matches ||
+  matchMedia('(display-mode: minimal-ui)').matches ||
+  matchMedia('(display-mode: fullscreen)').matches ||
+  navigator.standalone === true;
 
-// 首次：firstRun 显示说明 + 安装 + 进入按钮，不计时
-// 点「进入哔哩哔哩」→ prefSet(true) → location.replace(target)
-// 已记住：autoRun 显示「正在前往…」，两帧后立刻 location.replace(target)
+// 应用窗口 → 「正在前往…」一帧后直接 location.replace(target)
+// 浏览器标签页 → 停在首页，只提供说明 / 安装 / 手动进入
 ```
 
-**首访为什么停住**：安装入口只在这个页面被打开时存在，一自动跳走就永远没机会点安装。所以首屏必须停下来，让人先装、再决定。
+**实测依据（Chrome 157 / macOS，用 CDP 直接读值，不靠肉眼）**
 
-**为什么记住后不倒数**：这是跳板页，不是内容页——用户已经表达过「以后都进 B 站」，再多等 5 秒没有收益。所以直接 `location.replace()`。
+| 检测项 | Chrome 应用模式窗口（`--app=`） | 普通标签页 |
+| --- | --- | --- |
+| `(display-mode: standalone)` | **true** | false |
+| `(display-mode: browser)` | false | **true** |
+| `outerHeight - innerHeight` | 28（只有标题栏） | 87（标题栏 + 标签栏 +地址栏） |
+| `navigator.windowControlsOverlay.visible` | false | false |
 
-用两帧（`requestAnimationFrame` × 2）再跳，是为了让「正在前往…」这一帧先画出来，避免整页白屏闪一下；实际耗时约 30ms，肉眼无感。
+结论：
 
-取消方式：
+- `display-mode` 这个媒体查询是可靠信号，两个场景互斥；`windowControlsOverlay.visible` 在两种模式下都是 `false`，**不能用**；高度差虽然也能区分（28 vs 87），但会被缩放、全屏、自定义窗口干扰，只作参考不作主判据。
+- 已安装的 PWA 跑起来同样是 `display-mode: standalone`，所以 PWA 窗口和 `.app` 窗口都会被认成「应用窗口」，行为一致。
 
-- 浏览器里访问 `?stay=1` 会清掉记忆并停在首页（启动时解析 `URLSearchParams`，命中就 `prefSet(false)`）；
-- 页面上的「取消自动跳转」按钮仍然保留，用于跳转被拦下、页面没走掉的情况。
+细节：
 
-补充细节：
-
-- 跳转用 `location.replace()` 而不是 `location.href`，浏览器「后退」不会又回到跳转页再跳一次；
-- `localStorage` 全部包在 `try/catch` 里，隐私模式或 `file://` 下失败也不会报错；
-- 跳转加了 `jumping` 标志位，避免重复触发；
-- 跳不出去时（比如网络拦截），页面上留着「没有自动跳转？点这里」的按钮兜底。
+- 用两帧（`requestAnimationFrame` × 2）再跳，让「正在前往…」先画出来，避免整页白屏闪；实际约 30ms。
+- 跳转用 `location.replace()`，浏览器「后退」不会又回到跳转页再跳一次；`jumping` 标志位防止重复触发。
+- 跳不出去时（网络拦截等），页面上留着「没有自动跳转？点这里」兜底。
+- 想在应用窗口里临时不跳：地址后加 `?stay=1`，此时即使识别为应用窗口也停在首页。
 
 ### 3.5 安装入口（beforeinstallprompt）
 
@@ -213,11 +219,11 @@ python3 -m http.server 8080
 # 浏览器打开 http://localhost:8080
 ```
 
-首次停留在页面、不会自动跳，可以慢慢调样式。测完想回到「已记住」状态，在控制台执行 `localStorage.removeItem('bili-jump:auto')`，或点页面上的「取消自动跳转」。
+`file://` 下 `display-mode` 一直是 `browser`，所以页面永远停在首页，方便慢慢调样式。
 
 直接双击 `index.html`（`file://`）也能看页面，但 `file://` 下 Service Worker 不注册、Chrome 不会出现安装入口——**测安装相关行为必须用 `http://localhost` 或 HTTPS**。
 
-注意：点过「进入哔哩哔哩」后本地就会记住选择，下次打开直接跳转；想调试停留态，访问 `?stay=1`，或在控制台清掉 `bili-jump:auto`。
+注意：用 `file://` 打开时 `display-mode` 是 `browser`，所以永远停在首页，适合调样式；要验证自动跳转，用 `--app=http://localhost:8080/` 启动 Chrome，或直接装成 PWA 后打开。
 
 ## 部署（GitHub Pages）
 
@@ -265,8 +271,8 @@ git push origin main
 
 | 想改什么 | 改哪里 |
 | --- | --- |
-| 取消自动跳转 | 网址后加 `?stay=1`，或清掉 localStorage 的 `bili-jump:auto` |
-| 是否默认自动跳 | `CONFIG.autoKey` 对应的 localStorage 值；或改 `prefGet()` 的默认返回 |
+| 应用窗口里临时不跳 | 网址后加 `?stay=1` |
+| 自动跳转的判定条件 | `isAppWindow` 里那几条 `matchMedia` 判断 |
 | 跳转目标 | `CONFIG.target`，以及 `<a href>` 两处链接 |
 | 安装按钮文案 | `#installBtn` 文本、`#installNote` 提示 |
 | 应用名 / 图标 | `manifest.webmanifest` 的 `name` / `short_name` / `icons`，图标在 `icons/` |

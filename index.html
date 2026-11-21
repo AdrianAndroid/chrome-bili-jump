@@ -236,22 +236,6 @@
 
   .plain-link:hover { color: var(--brand); border-color: var(--brand); }
 
-  .linkish {
-    display: inline-block;
-    margin: 12px 0 0;
-    padding: 2px;
-    font-size: 13px;
-    font-family: inherit;
-    color: var(--ink-mute);
-    background: none;
-    border: 0;
-    border-bottom: 1px dashed rgba(107, 114, 128, 0.45);
-    cursor: pointer;
-    transition: color 0.18s ease, border-color 0.18s ease;
-  }
-
-  .linkish:hover { color: var(--brand); border-color: var(--brand); }
-
   .notice {
     margin-top: 26px;
     padding: 14px 16px;
@@ -316,13 +300,13 @@
 
   <p class="lead" id="lead">这个页面本身不托管任何内容，只负责把你送到哔哩哔哩。</p>
 
-  <!-- 首次使用：停下来解释 + 安装 + 一键进入 -->
+  <!-- 浏览器标签页：停下来解释 + 安装 + 手动进入 -->
   <div id="firstRun">
     <div class="steps">
       <ol>
-        <li>先把这个页面<strong>安装成桌面应用</strong>，以后从桌面 / Dock 直接打开，不用再找网址。</li>
-        <li>在应用里点一次「进入哔哩哔哩」，页面会记住这个选择。</li>
-        <li>之后再打开，<strong>自动跳转</strong>，不用再点。</li>
+        <li>在<strong>浏览器标签页</strong>里打开时，这个页面不会自动跳转，只是说明用途。</li>
+        <li>点「安装到桌面」把它装成应用，以后从桌面 / Dock 直接打开。</li>
+        <li>在<strong>应用窗口</strong>里打开时，才会自动前往哔哩哔哩。</li>
       </ol>
     </div>
 
@@ -342,10 +326,6 @@
     </button>
 
     <p class="install-note" id="installNote"></p>
-
-    <div>
-      <button class="linkish" id="jumpOnceBtn" type="button">这次只进 B 站，不记住选择</button>
-    </div>
   </div>
 
   <!-- 已记住选择：直接跳转 -->
@@ -362,9 +342,6 @@
         <path d="M5 12h13M13 6l6 6-6 6" />
       </svg>
     </a>
-    <div>
-      <button class="linkish" id="stopAutoBtn" type="button">取消自动跳转（下次先停在这里）</button>
-    </div>
   </div>
 
   <a class="plain-link" href="https://www.bilibili.com" rel="noopener noreferrer">https://www.bilibili.com</a>
@@ -382,8 +359,7 @@
   "use strict";
 
   var CONFIG = {
-    target: "https://www.bilibili.com",
-    autoKey: "bili-jump:auto"
+    target: "https://www.bilibili.com"
   };
 
   var el = {
@@ -393,8 +369,6 @@
     enterText: document.getElementById("enterText"),
     installBtn: document.getElementById("installBtn"),
     installNote: document.getElementById("installNote"),
-    jumpOnce: document.getElementById("jumpOnceBtn"),
-    stopAuto: document.getElementById("stopAutoBtn"),
     hint: document.getElementById("hint"),
     badge: document.getElementById("modeBadge"),
     modeText: document.getElementById("modeText"),
@@ -402,21 +376,22 @@
     sr: document.getElementById("sr")
   };
 
-  var standalone = false;
+  /* ---------- 识别「应用窗口」还是「浏览器标签页」 ----------
+     Chrome 应用模式窗口（--app=URL）和已安装的 PWA，窗口里
+     display-mode 是 standalone；普通标签页则是 browser。
+     实测数据（Chrome 157 / macOS）：
+       应用窗口 → standalone:true, browser:false, 高度差 28
+       普通标签 → standalone:false, browser:true, 高度差 87
+     注意 navigator.windowControlsOverlay.visible 在两种模式下都是 false，
+     不可用。 */
+  var isAppWindow = false;
   try {
-    standalone = window.matchMedia("(display-mode: standalone)").matches ||
+    isAppWindow =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
       window.navigator.standalone === true;
   } catch (e) {}
-
-  function prefGet() {
-    try { return localStorage.getItem(CONFIG.autoKey) === "1"; } catch (e) { return false; }
-  }
-  function prefSet(v) {
-    try {
-      if (v) localStorage.setItem(CONFIG.autoKey, "1");
-      else localStorage.removeItem(CONFIG.autoKey);
-    } catch (e) {}
-  }
 
   var jumping = false;
   function jump() {
@@ -430,49 +405,29 @@
     el.installNote.classList.add("show");
   }
 
-  /* ---------- 首次停留态 ---------- */
+  /* ---------- 浏览器标签页：停住 ---------- */
   function renderFirstRun() {
     el.firstRun.hidden = false;
     el.autoRun.hidden = true;
-
-    if (standalone) {
-      el.badge.hidden = false;
-      el.modeText.textContent = "已作为应用运行";
-      el.lead.textContent = "点一次下面的按钮，之后每次打开都会自动前往哔哩哔哩。";
-      el.enterText.textContent = "进入哔哩哔哩，以后自动跳转";
-      el.jumpOnce.textContent = "这次先不记住";
-    }
-    el.sr.textContent = "当前停留在跳转页。点击进入哔哩哔哩后，页面会记住选择，之后自动跳转。";
+    el.sr.textContent = "当前是浏览器标签页，页面不会自动跳转。可点击进入哔哩哔哩，或安装到桌面。";
   }
 
-  /* ---------- 自动跳转态：不再倒计时，直接走 ---------- */
+  /* ---------- 应用窗口：直接跳 ---------- */
   function renderAuto() {
     el.firstRun.hidden = true;
     el.autoRun.hidden = false;
-    if (standalone) {
-      el.badge.hidden = false;
-      el.modeText.textContent = "已作为应用运行 · 自动跳转已开启";
-    }
-    el.sr.textContent = "已记住选择，正在直接跳转到哔哩哔哩。";
-    // 先让「正在前往」这一帧画出来，随即跳转（约 1 帧，肉眼无感）
+    el.badge.hidden = false;
+    el.modeText.textContent = "已作为应用运行 · 自动跳转";
+    el.lead.textContent = "应用窗口已识别，正在直接前往哔哩哔哩。";
+    el.sr.textContent = "已识别为应用窗口，正在直接跳转到哔哩哔哩。";
+    // 先画一帧「正在前往」，随即跳转（约 30ms，肉眼无感）
     requestAnimationFrame(function () {
       requestAnimationFrame(jump);
     });
   }
 
   /* ---------- 交互 ---------- */
-  el.enterBtn.addEventListener("click", function () {
-    prefSet(true);
-    jump();
-  });
-
-  el.jumpOnce.addEventListener("click", jump);
-
-  el.stopAuto.addEventListener("click", function () {
-    prefSet(false);
-    el.autoRun.hidden = true;
-    renderFirstRun();
-  });
+  el.enterBtn.addEventListener("click", jump);
 
   /* ---------- 安装（PWA） ---------- */
   var deferredPrompt = null;
@@ -506,24 +461,26 @@
   /* ---------- 启动 ---------- */
   var forceStay = false;
   try {
-    var q = new URLSearchParams(window.location.search);
-    forceStay = q.get("stay") === "1";
+    forceStay = new URLSearchParams(window.location.search).get("stay") === "1";
   } catch (e) {}
 
-  if (forceStay) prefSet(false);
-
-  renderFirstRun();
-
-  if (forceStay) {
-    showNote("已取消自动跳转（地址带了 ?stay=1）。下次打开会先停在这里。");
-  } else if (prefGet()) {
+  if (isAppWindow && !forceStay) {
+    // 应用窗口：直接跳
     renderAuto();
-  } else if (!standalone) {
-    // 浏览器里没看到安装入口时，给一条手动路径
-    installedHintTimer = setTimeout(function () {
-      if (deferredPrompt || el.installBtn.classList.contains("show")) return;
-      showNote("没看到安装按钮？Chrome 里点右上角 ⋮ →「保存并分享」→「安装页面为应用」。");
-    }, 2500);
+  } else {
+    // 浏览器标签页（或应用窗口里带了 ?stay=1）：停住
+    renderFirstRun();
+    if (isAppWindow) {
+      el.badge.hidden = false;
+      el.modeText.textContent = "已作为应用运行 · 本次不跳转";
+      showNote("已暂停自动跳转（地址带了 ?stay=1）。下次在应用里打开会自动前往。");
+    } else {
+      // 标签页里没看到安装入口时，给一条手动路径
+      installedHintTimer = setTimeout(function () {
+        if (deferredPrompt || el.installBtn.classList.contains("show")) return;
+        showNote("没看到安装按钮？Chrome 里点右上角 ⋮ →「保存并分享」→「安装页面为应用」。");
+      }, 2500);
+    }
   }
 
   /* ---------- Service Worker（提升安装兼容性，不做缓存） ---------- */
