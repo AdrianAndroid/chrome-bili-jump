@@ -14,7 +14,9 @@
 set -euo pipefail
 
 APP_NAME="哔哩哔哩"
-TARGET_URL="https://www.bilibili.com/"
+# 应用中先打开跳转页：点一次「进入哔哩哔哩」后页面会记住选择，
+# 之后每次打开应用都自动跳转。想直接进官网可用 TARGET_URL 覆盖。
+TARGET_URL="${TARGET_URL:-https://adrianandroid.github.io/chrome-bili-jump/}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_PATH="${APP_PATH:-$HOME/Applications/$APP_NAME.app}"
 CHROME_APP="/Applications/Google Chrome.app"

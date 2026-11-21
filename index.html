@@ -4,9 +4,13 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#FB7299" />
-<meta name="description" content="个人自用的跳转跳板页面，倒计时结束后自动前往哔哩哔哩。" />
+<meta name="description" content="个人自用的跳转跳板页面，可安装为桌面应用，安装后一键前往哔哩哔哩。" />
 <meta name="robots" content="noindex" />
-<title>即将前往哔哩哔哩</title>
+<title>哔哩哔哩跳转页</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="哔哩哔哩" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23FB7299'/%3E%3Ctext x='32' y='44' font-size='34' font-family='sans-serif' font-weight='700' fill='%23fff' text-anchor='middle'%3EB%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
@@ -47,7 +51,7 @@
   .card {
     width: 100%;
     max-width: 460px;
-    padding: 40px 28px 28px;
+    padding: 38px 28px 26px;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
@@ -63,11 +67,10 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 
-  /* 顶部品牌标识 */
   .mark {
     width: 56px;
     height: 56px;
-    margin: 0 auto 22px;
+    margin: 0 auto 20px;
     display: grid;
     place-items: center;
     border-radius: 16px;
@@ -86,20 +89,63 @@
   }
 
   .lead {
-    margin: 0 0 28px;
+    margin: 0 0 22px;
     font-size: 14px;
     line-height: 1.7;
     color: var(--ink-mute);
   }
 
-  /* 倒计时数字 */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 18px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--brand-dark);
+    background: var(--brand-soft);
+    border-radius: 999px;
+  }
+
+  .badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand);
+  }
+
+  /* 首次使用的说明块 */
+  .steps {
+    margin: 0 0 22px;
+    padding: 16px 18px;
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.9;
+    color: #4b5158;
+    background: #fafbfc;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .steps ol {
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  .steps li::marker { color: var(--brand); }
+
+  .steps strong { color: var(--ink); font-weight: 600; }
+
+  /* 倒计时 */
   .countdown {
-    display: flex;
+    display: none;
     align-items: baseline;
     justify-content: center;
     gap: 6px;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
+
+  .countdown.show { display: flex; }
 
   .countdown .num {
     font-size: clamp(44px, 13vw, 56px);
@@ -116,8 +162,8 @@
     color: var(--ink-mute);
   }
 
-  /* 进度条 */
   .bar {
+    display: none;
     height: 4px;
     margin: 0 auto 8px;
     max-width: 260px;
@@ -125,6 +171,8 @@
     background: var(--brand-soft);
     overflow: hidden;
   }
+
+  .bar.show { display: block; }
 
   .bar span {
     display: block;
@@ -137,13 +185,13 @@
   }
 
   .hint {
-    margin: 0 0 26px;
+    margin: 0 0 22px;
     font-size: 13px;
     color: var(--ink-mute);
     min-height: 20px;
   }
 
-  /* 主按钮 */
+  /* 按钮 */
   .go {
     display: flex;
     align-items: center;
@@ -161,6 +209,7 @@
     border-radius: 12px;
     box-shadow: 0 10px 20px -12px rgba(251, 114, 153, 0.9);
     transition: background 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+    cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -170,10 +219,46 @@
 
   .go svg { width: 18px; height: 18px; }
 
-  /* 手动链接 */
+  /* 安装按钮（次要样式） */
+  .install {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .install.show { display: flex; }
+  .install:hover { border-color: var(--brand); background: #fffaff; }
+  .install:focus-visible { outline: 2px solid var(--brand-dark); outline-offset: 3px; }
+  .install svg { width: 17px; height: 17px; color: var(--brand); }
+
+  .install-note {
+    display: none;
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--ink-mute);
+  }
+
+  .install-note.show { display: block; }
+
+  /* 链接类 */
   .plain-link {
     display: inline-block;
-    margin: 16px 0 0;
+    margin: 14px 0 0;
     font-size: 13px;
     color: var(--ink-mute);
     text-decoration: none;
@@ -185,9 +270,24 @@
 
   .plain-link:hover { color: var(--brand); border-color: var(--brand); }
 
-  /* 免责说明 */
+  .linkish {
+    display: inline-block;
+    margin: 12px 0 0;
+    padding: 2px;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--ink-mute);
+    background: none;
+    border: 0;
+    border-bottom: 1px dashed rgba(107, 114, 128, 0.45);
+    cursor: pointer;
+    transition: color 0.18s ease, border-color 0.18s ease;
+  }
+
+  .linkish:hover { color: var(--brand); border-color: var(--brand); }
+
   .notice {
-    margin-top: 30px;
+    margin-top: 26px;
     padding: 14px 16px;
     text-align: left;
     font-size: 12px;
@@ -202,7 +302,7 @@
   .notice strong { color: #43474e; font-weight: 600; }
 
   .foot {
-    margin: 18px 0 0;
+    margin: 16px 0 0;
     font-size: 12px;
     color: #9aa1ab;
   }
@@ -217,14 +317,17 @@
     border: 0;
   }
 
+  [hidden] { display: none !important; }
+
   @media (max-width: 380px) {
-    .card { padding: 32px 20px 22px; }
-    .mark { width: 50px; height: 50px; margin-bottom: 18px; }
+    .card { padding: 30px 20px 22px; }
+    .mark { width: 50px; height: 50px; margin-bottom: 16px; }
+    .steps { padding: 14px 14px; }
   }
 
   @media (prefers-reduced-motion: reduce) {
     .card { animation: none; }
-    .go { transition: none; }
+    .go, .install { transition: none; }
   }
 </style>
 </head>
@@ -238,32 +341,74 @@
     </svg>
   </div>
 
-  <h1 id="title">即将前往哔哩哔哩</h1>
-  <p class="lead">这是一个纯静态跳转页，不做任何内容中转。</p>
+  <h1 id="title">哔哩哔哩跳转页</h1>
 
-  <div class="countdown">
-    <span class="num" id="num">5</span>
-    <span class="unit">秒后自动跳转</span>
+  <div class="badge" id="modeBadge" hidden>
+    <span class="dot"></span>
+    <span id="modeText">已作为应用运行</span>
   </div>
 
-  <div class="bar" aria-hidden="true"><span id="bar"></span></div>
-  <p class="hint" id="hint">正在为你准备跳转…</p>
-  <p class="sr-only" id="sr">页面将在 5 秒后自动跳转到哔哩哔哩官网。</p>
+  <p class="lead" id="lead">这个页面本身不托管任何内容，只负责把你送到哔哩哔哩。</p>
 
-  <a class="go" id="go" href="https://www.bilibili.com" rel="noopener noreferrer">
-    立即前往
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M5 12h13M13 6l6 6-6 6" />
-    </svg>
-  </a>
+  <!-- 首次使用：停下来解释 + 安装 + 一键进入 -->
+  <div id="firstRun">
+    <div class="steps">
+      <ol>
+        <li>先把这个页面<strong>安装成桌面应用</strong>，以后从桌面 / Dock 直接打开，不用再找网址。</li>
+        <li>在应用里点一次「进入哔哩哔哩」，页面会记住这个选择。</li>
+        <li>之后再打开，<strong>自动跳转</strong>，不用再点。</li>
+      </ol>
+    </div>
 
-  <a class="plain-link" id="plain" href="https://www.bilibili.com" rel="noopener noreferrer">https://www.bilibili.com</a>
+    <button class="go" id="enterBtn" type="button">
+      <span id="enterText">进入哔哩哔哩</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h13M13 6l6 6-6 6" />
+      </svg>
+    </button>
+
+    <button class="install" id="installBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v11M7.5 9.5 12 14l4.5-4.5" />
+        <path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" />
+      </svg>
+      安装到桌面
+    </button>
+
+    <p class="install-note" id="installNote"></p>
+
+    <div>
+      <button class="linkish" id="jumpOnceBtn" type="button">这次只进 B 站，不记住选择</button>
+    </div>
+  </div>
+
+  <!-- 已记住选择：倒计时自动跳转 -->
+  <div id="autoRun" hidden>
+    <div class="countdown show">
+      <span class="num" id="num">5</span>
+      <span class="unit">秒后自动跳转</span>
+    </div>
+    <div class="bar show" aria-hidden="true"><span id="bar"></span></div>
+    <p class="hint" id="hint">正在为你准备跳转…</p>
+    <a class="go" id="goNow" href="https://www.bilibili.com" rel="noopener noreferrer">
+      立即前往
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h13M13 6l6 6-6 6" />
+      </svg>
+    </a>
+    <div>
+      <button class="linkish" id="stopAutoBtn" type="button">取消自动跳转（下次先停在这里）</button>
+    </div>
+  </div>
+
+  <a class="plain-link" href="https://www.bilibili.com" rel="noopener noreferrer">https://www.bilibili.com</a>
 
   <div class="notice">
     <strong>免责声明：</strong>本页面仅为跳转跳板，不是哔哩哔哩官方产品，不托管任何 B 站内容。页面不解析视频、不注入任何脚本、不提供任何绕过或抓取功能。所有内容与版权均归哔哩哔哩及其权利人所有。
   </div>
 
   <p class="foot">个人自用页面 · 无第三方依赖</p>
+  <p class="sr-only" id="sr"></p>
 </main>
 
 <script>
@@ -272,40 +417,80 @@
 
   var CONFIG = {
     target: "https://www.bilibili.com",
-    seconds: 5
+    seconds: 5,
+    autoKey: "bili-jump:auto"
   };
 
-  var numEl  = document.getElementById("num");
-  var barEl  = document.getElementById("bar");
-  var hintEl = document.getElementById("hint");
-  var srEl   = document.getElementById("sr");
+  var el = {
+    firstRun: document.getElementById("firstRun"),
+    autoRun: document.getElementById("autoRun"),
+    enterBtn: document.getElementById("enterBtn"),
+    enterText: document.getElementById("enterText"),
+    installBtn: document.getElementById("installBtn"),
+    installNote: document.getElementById("installNote"),
+    jumpOnce: document.getElementById("jumpOnceBtn"),
+    stopAuto: document.getElementById("stopAutoBtn"),
+    num: document.getElementById("num"),
+    bar: document.getElementById("bar"),
+    hint: document.getElementById("hint"),
+    badge: document.getElementById("modeBadge"),
+    modeText: document.getElementById("modeText"),
+    lead: document.getElementById("lead"),
+    sr: document.getElementById("sr")
+  };
 
-  var total   = Math.max(1, CONFIG.seconds) * 1000;
-  var remain  = total;
-  var startedAt = 0;
-  var rafId = null;
+  var standalone = false;
+  try {
+    standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true;
+  } catch (e) {}
+
+  function prefGet() {
+    try { return localStorage.getItem(CONFIG.autoKey) === "1"; } catch (e) { return false; }
+  }
+  function prefSet(v) {
+    try {
+      if (v) localStorage.setItem(CONFIG.autoKey, "1");
+      else localStorage.removeItem(CONFIG.autoKey);
+    } catch (e) {}
+  }
+
   var jumping = false;
-
   function jump() {
     if (jumping) return;
     jumping = true;
-    if (rafId) cancelAnimationFrame(rafId);
     window.location.replace(CONFIG.target);
   }
 
+  /* ---------- 首次停留态 ---------- */
+  function renderFirstRun() {
+    el.firstRun.hidden = false;
+    el.autoRun.hidden = true;
+
+    if (standalone) {
+      el.badge.hidden = false;
+      el.modeText.textContent = "已作为应用运行";
+      el.lead.textContent = "点一次下面的按钮，之后每次打开都会自动前往哔哩哔哩。";
+      el.enterText.textContent = "进入哔哩哔哩，以后自动跳转";
+      el.jumpOnce.textContent = "这次先不记住";
+    }
+    el.sr.textContent = "当前停留在跳转页。点击进入哔哩哔哩后，页面会记住选择，之后自动跳转。";
+  }
+
+  /* ---------- 自动跳转态 ---------- */
+  var rafId = null, remain = 0, startedAt = 0, total = CONFIG.seconds * 1000;
+
   function paint(ms) {
     var ratio = Math.max(0, ms) / total;
-    var secs = Math.ceil(ms / 1000);
-    numEl.textContent = secs > 0 ? String(secs) : "0";
-    barEl.style.transform = "scaleX(" + ratio.toFixed(4) + ")";
+    el.num.textContent = String(Math.max(0, Math.ceil(ms / 1000)));
+    el.bar.style.transform = "scaleX(" + ratio.toFixed(4) + ")";
   }
 
   function tick(now) {
-    var elapsed = now - startedAt;
-    var left = remain - elapsed;
+    var left = remain - (now - startedAt);
     if (left <= 0) {
       paint(0);
-      hintEl.textContent = "正在跳转到哔哩哔哩…";
+      el.hint.textContent = "正在跳转到哔哩哔哩…";
       jump();
       return;
     }
@@ -313,32 +498,106 @@
     rafId = requestAnimationFrame(tick);
   }
 
-  function start() {
+  function startCountdown() {
     startedAt = performance.now();
     rafId = requestAnimationFrame(tick);
   }
 
-  // 页面被切到后台时暂停，回到前台再继续，避免“回来就已经跳走了”
-  function pause() {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
+  function pauseCountdown() {
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     remain = Math.max(0, remain - (performance.now() - startedAt));
   }
 
-  document.addEventListener("visibilitychange", function () {
-    if (jumping) return;
-    if (document.hidden) {
-      pause();
-    } else if (!rafId) {
-      start();
+  function renderAuto() {
+    el.firstRun.hidden = true;
+    el.autoRun.hidden = false;
+    remain = total;
+    paint(total);
+    if (standalone) {
+      el.badge.hidden = false;
+      el.modeText.textContent = "已作为应用运行 · 自动跳转已开启";
     }
+    el.sr.textContent = "已记住选择，页面将在 " + CONFIG.seconds + " 秒后自动跳转到哔哩哔哩。";
+    startCountdown();
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (jumping || el.autoRun.hidden) return;
+    if (document.hidden) pauseCountdown();
+    else if (!rafId) startCountdown();
   });
 
-  srEl.textContent = "页面将在 " + CONFIG.seconds + " 秒后自动跳转到哔哩哔哩官网。";
-  paint(total);
-  start();
+  /* ---------- 交互 ---------- */
+  el.enterBtn.addEventListener("click", function () {
+    prefSet(true);
+    jump();
+  });
+
+  el.jumpOnce.addEventListener("click", jump);
+
+  el.stopAuto.addEventListener("click", function () {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    prefSet(false);
+    el.autoRun.hidden = true;
+    remain = total;
+    renderFirstRun();
+    el.hint.textContent = "";
+  });
+
+  /* ---------- 安装（PWA） ---------- */
+  var deferredPrompt = null;
+  var installedHintTimer = null;
+
+  function showInstallHint(text) {
+    el.installNote.textContent = text;
+    el.installNote.classList.add("show");
+  }
+
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    el.installBtn.classList.add("show");
+    el.installNote.classList.remove("show");
+    if (installedHintTimer) clearTimeout(installedHintTimer);
+  });
+
+  el.installBtn.addEventListener("click", function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function (choice) {
+      if (choice && choice.outcome === "accepted") {
+        el.installBtn.classList.remove("show");
+        showInstallHint("已开始安装。装好后从桌面打开，它会记住你的选择。");
+      }
+      deferredPrompt = null;
+    });
+  });
+
+  window.addEventListener("appinstalled", function () {
+    el.installBtn.classList.remove("show");
+    showInstallHint("已安装。以后从桌面或 Dock 打开即可。");
+  });
+
+  /* ---------- 启动 ---------- */
+  renderFirstRun();
+
+  if (prefGet()) {
+    renderAuto();
+  } else if (!standalone) {
+    // 浏览器里没看到安装入口时，给一条手动路径
+    installedHintTimer = setTimeout(function () {
+      if (deferredPrompt || el.installBtn.classList.contains("show")) return;
+      showInstallHint("没看到安装按钮？Chrome 里点右上角 ⋮ →「保存并分享」→「安装页面为应用」。");
+    }, 2500);
+  }
+
+  /* ---------- Service Worker（提升安装兼容性，不做缓存） ---------- */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
 })();
 </script>
 </body>

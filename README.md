@@ -1,8 +1,8 @@
 # chrome-bili-jump
 
-一个托管在 GitHub Pages 上的**纯静态跳转跳板页**，个人自用。
+一个托管在 GitHub Pages 上的**纯静态跳转跳板页**，个人自用；也可以安装成桌面应用（PWA）。
 
-打开页面后倒计时 5 秒，自动跳转到 [bilibili.com](https://www.bilibili.com)；同时提供「立即前往」按钮和明文链接作为手动入口，不依赖任何第三方库、后端服务或 iframe。
+首次打开会停在原地讲清楚用途，并给出「安装到桌面」入口；点一次「进入哔哩哔哩」后记住选择，**之后每次打开倒计时 5 秒自动跳转**到 [bilibili.com](https://www.bilibili.com)。全站不依赖任何第三方库、后端服务或 iframe。
 
 > 线上地址：<https://adrianandroid.github.io/chrome-bili-jump/>
 
@@ -12,7 +12,7 @@
 | --- | --- |
 | ![电脑端预览](docs/preview-desktop.png) | ![手机端预览](docs/preview-mobile.png) |
 
-两张预览图都是用 Chrome DevTools 设备模拟（`Emulation.setDeviceMetricsOverride`）对本地 `index.html` 直接截的，不是设计稿，也不是后期拼图。
+两张预览图都是用 Chrome DevTools 设备模拟（`Emulation.setDeviceMetricsOverride`）对本地页面直接截的，截的是**首次打开、停在原地的状态**，不是设计稿也不是后期拼图。
 
 ## macOS 桌面应用版
 
@@ -72,18 +72,22 @@ open ~/Applications/哔哩哔哩.app
 
 ## 功能
 
-- 5 秒倒计时结束后自动跳转，倒计时数字 + 进度条同步变化
-- 「立即前往」按钮可直接跳转，另有明文 URL 作为兜底入口
-- 手机 / 电脑双端自适应，安全区（刘海屏、手势条）留白
-- 页面被切到后台时倒计时**暂停**，回到前台继续，避免「回来就已经跳走了」
-- 带完整免责声明
-- 单文件，无第三方依赖，无构建步骤
+- **首次打开停在原地，不跳转**：先把用途讲清楚，同时给出安装入口和「进入哔哩哔哩」按钮
+- 点一次「进入哔哩哔哩」后，页面用 `localStorage` 记住选择；**之后每次打开自动倒计时跳转**（5 秒，可随时取消）
+- 「取消自动跳转」按钮可清除记忆，回到停留态
+- 可作为 PWA **安装到桌面**（Chrome 地址栏安装图标 / 菜单「安装页面为应用」）
+- 手机 / 电脑双端自适应，安全区（刘海屏、手势条）留白；可安装后跑在独立窗口里
+- 页面被切到后台时倒计时暂停，回到前台继续
+- 带完整免责声明，无第三方依赖
 
 ## 文件结构
 
 ```
 chrome-bili-jump/
 ├── index.html              # 全部页面：HTML + CSS + JS 都在这一个文件里
+├── manifest.webmanifest    # PWA 清单（安装入口依赖它）
+├── sw.js                   # 极简 Service Worker，只满足安装条件，不缓存不改写
+├── icons/                  # 180 / 192 / 512 应用图标
 ├── macos/
 │   ├── build-app.sh        # 一键生成 macOS 桌面应用
 │   └── icon.svg            # 应用图标源文件
@@ -93,6 +97,28 @@ chrome-bili-jump/
 │   └── preview-app-window.png # 桌面应用窗口截图
 └── README.md
 ```
+
+## 安装为桌面应用（PWA）
+
+打开 <https://adrianandroid.github.io/chrome-bili-jump/> 后，Chrome 会在地址栏右侧显示一个安装图标，菜单里也有「保存并分享 → 安装页面为应用」。点它，页面就成了一个独立窗口的应用（有桌面 / 启动器图标，没有地址栏）。
+
+判定条件（页面对应的实现）：
+
+| Chrome 要求 | 本仓库 |
+| --- | --- |
+| HTTPS | GitHub Pages 自带 |
+| `name` / `short_name` | `manifest.webmanifest` 里已写 |
+| 192 与 512 图标 | `icons/icon-192.png`、`icons/icon-512.png` |
+| `start_url`、`scope` | 都写成相对路径 `./`，所以挂在 `/chrome-bili-jump/` 子路径下也正确 |
+| `display` 为 standalone | 已设置，装完是独立窗口 |
+| Service Worker（Chrome 112 起已不强制） | 仍加了一个空的 `sw.js`，只为兼容更老的版本 |
+
+**一个必须说清的限制**：装出来的应用，窗口里显示的是这个跳板页；点「进入哔哩哔哩」跳转到 `bilibili.com` 时，由于目标在 PWA 的 scope 之外，Chrome 会把它放到普通浏览器标签页里，独立窗口留在跳板页。跨域页面无法留在应用窗口内（要留只能 iframe，而 B 站禁止被框，本项目也明确不用）。
+
+所以两种用法各有取舍：
+
+- 想「一个独立窗口里一直是 B 站」→ 用 macOS 的 `.app`（Chrome 应用模式，导航不换窗口），见上一节；
+- 想「任何电脑点一下就能装上、记录偏好」→ 用 PWA，但每次跳转都会落到浏览器标签页。
 
 ## 实现思路
 
@@ -114,31 +140,57 @@ chrome-bili-jump/
 - 字体尺寸用 `clamp()`（如 `clamp(19px, 4.6vw, 22px)`），字号随视口平滑变化，不需要为每个断点写一套 media query；
 - 倒计时数字加 `font-variant-numeric: tabular-nums`，数字从 5 变到 4 时宽度不变，不会左右抖动。
 
-### 3. 倒计时逻辑
+### 3. 停留态与自动跳转
 
-不是简单地 `setInterval` 每秒减一，而是**基于时间戳计算剩余时间**，用 `requestAnimationFrame` 渲染：
+页面有两个状态，靠 `localStorage` 里的 `bili-jump:auto` 决定：
 
 ```js
-var CONFIG = { target: "https://www.bilibili.com", seconds: 5 };
+var CONFIG = { target: "https://www.bilibili.com", seconds: 5, autoKey: "bili-jump:auto" };
 
+// 首次：firstRun 显示说明 + 安装 + 进入按钮，不计时
+// 点「进入哔哩哔哩」→ prefSet(true) → location.replace(target)
+// 已记住：autoRun 显示倒计时并跳转
+```
+
+**首访为什么不倒计时**：安装入口只在这个页面被打开时存在，5 秒自动跳走就永远没机会点安装。所以首屏必须停下来，让人先装、再决定。
+
+倒计时本身不是简单的 `setInterval` 每秒减一，而是**基于时间戳算剩余时间**，用 `requestAnimationFrame` 渲染：
+
+```js
 startedAt = performance.now();
 function tick(now) {
-  var elapsed = now - startedAt;
-  var left = remain - elapsed;
+  var left = remain - (now - startedAt);
   if (left <= 0) { jump(); return; }
   paint(left);                       // 数字 = ceil(left / 1000)，进度条 = left / total
   rafId = requestAnimationFrame(tick);
 }
 ```
 
-这么做的原因：`setInterval` 在主线程繁忙、后台标签页节流时会产生累计误差，甚至漏跳；用「截止时间 - 当前时间」算剩余量则不会漂移，进度条也能和数字严格同步（`scaleX()` 变换比改 `width` 少触发重排）。
+原因：`setInterval` 在主线程繁忙、后台标签页节流时会产生累计误差，甚至漏跳；用「截止时间 - 当前时间」算剩余量不会漂移，进度条也能和数字严格同步（`scaleX()` 比改 `width` 更省重排）。
 
 补充细节：
 
-- 跳转用 `location.replace()` 而不是 `location.href`，这样浏览器的「后退」不会又回到跳转页再跳一次；
-- `visibilitychange` 里暂停 / 恢复：隐藏时记下剩余量并取消动画帧，重新可见时重新计时起点；
-- 跳转加了 `jumping` 标志位，避免重复触发；
-- 「立即前往」是 `<a>` 元素而不是 `<button>`，中键新标签打开、复制链接、键盘回车都能正常工作，也更符合语义。
+- 跳转用 `location.replace()` 而不是 `location.href`，浏览器「后退」不会又回到跳转页再跳一次；
+- `visibilitychange` 里暂停 / 恢复：隐藏时记下剩余量并取消动画帧，可见时重新计时起点；
+- 「取消自动跳转」清掉 key、回到停留态，不刷新页面也能立刻生效；
+- `localStorage` 全部包在 `try/catch` 里，隐私模式或 `file://` 下失败也不会报错；
+- 跳转加了 `jumping` 标志位，避免重复触发。
+
+### 3.5 安装入口（beforeinstallprompt）
+
+Chrome 判定站点可安装后会派发 `beforeinstallprompt`。页面把它拦下来，转成自己的「安装到桌面」按钮：
+
+```js
+window.addEventListener("beforeinstallprompt", function (e) {
+  e.preventDefault();          // 不弹 Chrome 默认小气泡
+  deferredPrompt = e;
+  installBtn.classList.add("show");
+});
+```
+
+点了按钮才调用 `deferredPrompt.prompt()`，再用 `userChoice` 的结果切换文案；`appinstalled` 事件把按钮换成「已安装」。
+
+按钮平时是隐藏的——不满足安装条件（Safari、旧版 Chrome、已经装过）就根本不出现，不会出现一个点了没反应的死按钮。浏览器里 2.5 秒后还没等到该事件，会给一条手动路径的提示（菜单里安装）。
 
 ### 4. 视觉
 
@@ -164,17 +216,15 @@ function tick(now) {
 ```bash
 git clone git@github.com:AdrianAndroid/chrome-bili-jump.git
 cd chrome-bili-jump
-open index.html          # 直接双击/打开就行，无需起服务
-```
-
-想用 `http://` 而非 `file://` 预览：
-
-```bash
 python3 -m http.server 8080
 # 浏览器打开 http://localhost:8080
 ```
 
-注意：本地打开时倒计时结束同样会跳到 B 站，调试样式建议在 5 秒内操作，或临时把 `CONFIG.seconds` 调大。
+首次停留在页面、不会自动跳，可以慢慢调样式。测完想回到「已记住」状态，在控制台执行 `localStorage.removeItem('bili-jump:auto')`，或点页面上的「取消自动跳转」。
+
+直接双击 `index.html`（`file://`）也能看页面，但 `file://` 下 Service Worker 不注册、Chrome 不会出现安装入口——**测安装相关行为必须用 `http://localhost` 或 HTTPS**。
+
+注意：点过「进入哔哩哔哩」后本地就会记住选择，下次打开直接倒计时跳转；调试时记得先清掉那个 localStorage key。
 
 ## 部署（GitHub Pages）
 
@@ -208,20 +258,25 @@ curl -H "Authorization: Bearer $GITHUB_TOKEN" \
 
 ```bash
 cd chrome-bili-jump
-# 改 index.html（比如倒计时秒数、配色、文案）
-git add index.html
-git commit -m "style: 调整倒计时时长"
+# 改 index.html / manifest.webmanifest / sw.js
+git add -A
+git commit -m "feat: 调整跳转逻辑"
 git push origin main
 ```
 
 推送后 Pages 会自动重新构建，通常 30 秒 ~ 2 分钟生效，可强刷（`Cmd + Shift + R`）确认。
 
+注意：装过的 PWA 有缓存版本，改完 manifest 或页面后如果没变化，先在 Chrome 里「卸载」再重新安装。
+
 ## 可调参数
 
 | 想改什么 | 改哪里 |
 | --- | --- |
-| 倒计时秒数 | `index.html` 脚本里的 `CONFIG.seconds`，以及 `#num` 初始值和 `#sr` 文案里的 5 |
+| 自动跳转秒数 | `index.html` 脚本里的 `CONFIG.seconds`（只在「已记住」状态生效） |
+| 是否默认自动跳 | `CONFIG.autoKey` 对应的 localStorage 值；或改 `prefGet()` 的默认返回 |
 | 跳转目标 | `CONFIG.target`，以及 `<a href>` 两处链接 |
+| 安装按钮文案 | `#installBtn` 文本、`#installNote` 提示 |
+| 应用名 / 图标 | `manifest.webmanifest` 的 `name` / `short_name` / `icons`，图标在 `icons/` |
 | 主色 | `:root` 里的 `--brand` / `--brand-dark` / `--brand-soft` |
 | 卡片宽度 | `.card` 的 `max-width` |
-| 文案 | `<h1>`、`.lead`、`.hint`、`.notice` |
+| 说明步骤 | `#firstRun` 里的 `.steps` 列表 |
