@@ -14,6 +14,62 @@
 
 两张预览图都是用 Chrome DevTools 设备模拟（`Emulation.setDeviceMetricsOverride`）对本地 `index.html` 直接截的，不是设计稿，也不是后期拼图。
 
+## macOS 桌面应用版
+
+除了网页跳转，仓库里还带了一个构建脚本，把 B 站装成 macOS 上可以双击打开的「应用」：
+
+![应用窗口](docs/preview-app-window.png)
+
+窗口没有地址栏、没有标签栏，就是一个应用窗口；登录态、插件跟本机 Chrome 共用。
+
+### 为什么不是「Chrome 应用」
+
+Chrome Apps（`.crx` 应用平台）在 2022 年就已经下线，Windows / macOS / Linux 上都不再支持；Chrome 现在唯一的「装成应用」入口是 PWA 安装，而 B 站页面没有 `manifest.json`（不是可安装 PWA），右键菜单里不会出现安装项。
+
+所以这里用的是 **Chrome 的应用模式窗口**（`--app=URL`）：它本来就是给「把某个网站当独立应用打开」用的，只是 Chrome 没给 macOS 提供手动生成 `.app` 的界面。
+
+### 实现
+
+`macos/build-app.sh` 生成一个标准 `.app` bundle：
+
+```
+哔哩哔哩.app/
+└── Contents/
+    ├── Info.plist           # CFBundleExecutable=launcher，图标 app.icns
+    ├── MacOS/launcher       # exec Chrome --app=https://www.bilibili.com/
+    └── Resources/app.icns   # 由 macos/icon.svg 渲染生成
+```
+
+关键点：
+
+- 启动脚本直接 `exec` 到 Chrome，不额外常驻进程，所以关掉窗口就等于退出；
+- 不带 `--user-data-dir`，即复用主 Chrome 配置，B 站登录态、插件、代理设置全都沿用，不用重新扫码登录；
+- `--no-first-run --no-default-browser-check` 避免首次启动弹引导页；
+- 图标用 Chrome 无头模式把 SVG 渲染成 1024 PNG（透明底），再 `sips` + `iconutil` 拼 icns；
+- `Info.plist` 用 Python `plistlib` 生成，避免手写 XML 出错；
+- ad-hoc 签名 + 去掉 quarantine 属性，本地打开不会被 Gatekeeper 拦。
+
+一个踩过的坑：Chrome「安装网页应用」生成的那种 bundle 用的是 `app_mode_loader` + `CrAppModeShortcutURL`，我照着复刻过一版 —— 手工拼的 bundle 会因为没在 Chrome profile 的应用注册表里而报 `No suitable profile found`，最后退化成普通标签页；签名还必须带 `com.apple.security.cs.disable-library-validation`，否则 ad-hoc 签名的 loader 加载不了 Google 签名的 Chrome Framework。所以最终走的是脚本 + `--app` 这条更直接的路。
+
+### 构建与安装
+
+```bash
+cd chrome-bili-jump
+bash macos/build-app.sh
+open ~/Applications/哔哩哔哩.app
+```
+
+装好后从 Launchpad 就能看到「哔哩哔哩」，也可以把它拖进 Dock。
+
+已知取舍：
+
+- 进程实体是 Chrome，所以菜单栏和 Dock 运行态显示的是 Chrome 图标/名称，Launchpad 和 Finder 里显示的是自己的粉色图标；
+- 想彻底拥有独立图标和独立身份，需要原生 WKWebView 壳（另一套方案，登录态也要单独维护）。
+
+### 桌面应用 vs 网页跳转页
+
+两者不冲突：桌面应用是「日常打开 B 站」的入口，直接进官网；`index.html` 是浏览器里访问时的兜底跳转页（比如从收藏夹、快捷指令、其他设备点进来）。
+
 ## 功能
 
 - 5 秒倒计时结束后自动跳转，倒计时数字 + 进度条同步变化
@@ -28,9 +84,13 @@
 ```
 chrome-bili-jump/
 ├── index.html              # 全部页面：HTML + CSS + JS 都在这一个文件里
+├── macos/
+│   ├── build-app.sh        # 一键生成 macOS 桌面应用
+│   └── icon.svg            # 应用图标源文件
 ├── docs/
 │   ├── preview-desktop.png # README 用的电脑端截图
-│   └── preview-mobile.png  # README 用的手机端截图
+│   ├── preview-mobile.png  # README 用的手机端截图
+│   └── preview-app-window.png # 桌面应用窗口截图
 └── README.md
 ```
 
